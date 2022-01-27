@@ -5,7 +5,7 @@
 
 
 ## Install
-1, Manage project dependencies through composer
+1. Manage project dependencies through composer
 ```
 "require": {
     "wangsucs/wcs-sdk-php": "^2.0.0"
@@ -14,7 +14,7 @@
 ```
 
 
-2, You can also download [PHP SDK](https://wcsd.chinanetcenter.com/sdk/cnc-php-sdk-wcs.zip), and then import manually.
+2. You can also download [PHP SDK](https://wcsd.chinanetcenter.com/sdk/cnc-php-sdk-wcs.zip), and then import manually.
 ```
 require_once __DIR__ . '/vendor/autoload.php';
 
@@ -53,11 +53,10 @@ const WCS_COUNT_FOR_RETRY = 3;  //Timeout retry count
 
 ## Function Explanation
 ### Normal Upload
-Noraml upload takes the sheet form upload method to directly upload files to cloud storage. It is recommended to use this method when the file is less than 20M.
-- If the ==callbackBody== parameter is specified, WCS makes an HTTP request to the server address specified by the ==callbackUrl==. 
-The server completes processing according to this content, and customizes the response content in the HTTP response. After receiving the response, WCS will send the feedback data to the client. If the ==callbackBody== parameter is not specified, WCS returns an empty string to the client.
-- If you want setup a pre-processing in a successful upload, it is specified with ==persistentOps== parameter. ==persistentNotifyUrl== specifies the method to handle the successful upload, and if you specify ==returnBody== and ==returnUrl==, WCS will go to the address specified by ==returnUrl== and pass the parameters specified by ==returnBody== after the successful upload. 
-
+Objects will be uploaded to cloud storage by sheet form when using Normal upload. It is recommended to use this method when the file is less than 20M.
+- Cloud storage will send an callback HTTP request to business server specified by parameter `callbackUrl` and then send back the response received from business server to client if `callbackBody`  is not empty. Or an empty sting will be send back to client if `callbackBody`  is empty.
+- Cloud storage will go to the address specified by `returnUrl` with parameters specified by `returnBody` after upload, if `returnUrl` and `returnBody` are not empty.
+- If you want setup a pre-processing after upload, it is specified with parameter `persistentOps`. And `persistentNotifyUrl` specifies the method to handle the successful upload. 
 #### Example
 ```
 //bucketName 
@@ -112,21 +111,23 @@ $ php file_upload_notify.php [-h | --help] -b <bucketName> -f <fileKey> -l <loca
 ### Multipart Upload
 The general process of multipart upload is as follows:
 
-1, mkblk (mknlk must be operated before each block is uploaded, and the server returns the first CTX)
-2, bput (bput after mkblk, upload block with the previous CTX and return the current CTX)
-3, mkfile (when the file is uploaded, do mkfile with the last CTX information for each block)
+1. mkblk (`mknlk` must be done first before each block is uploaded, and the server returns the first CTX)
+
+2. bput (do `bput` after `mkblk`, which will upload block with the previous CTX and return the current CTX)
+
+3. mkfile (when the file is uploaded, do `mkfile` with the last CTX information for each block)
 
 **Note:**
-- In case of request timeout,  multipart upload will be retransmitted automatically. In other cases (e.g. the status code is not 28), report an error and exit, and the error information will be saved in the current directory. Save as Filename. Log (hidden file).
-- After the upload is interrupted, the upload information is saved in a hidden file “Filename.rcd”, each item record the information of block upload. Breakpoint upload will analyze the status of the current upload from the last recorded information and make subsequent uploads. After that, the record file will be deleted.
+- By default, multipart upload will be redone automatically when request is timeout. In other cases(e.g. the status code is not 28), an error will be reported with the error information saved as filename `.log` (hidden file) in current directory.
+- When upload is interrupted, the log to record upload information will be saved in a hidden file `Filename.rcd`. And when you want a connection resuming on break-point, upload information will be got from the last record log, after which subsequent uploads will go. The record file will be deleted after upload successfully.
 - For breakpoint upload, you only need to re-execute the multipart upload operation.
-- Multipart upload only does concurrency inside the block, and it is initialization concurrency instead of multithreading. Considering that PHP doesn't support multithreading very well, the conversion mechanism is implemented using guzzleHTTP.
-- The default size of the block is 4M and the size of the chunk is 256K, which is for more stable upload. If user thinks the upload speed is too slow and wants to improve it, he only need to adjust the size of the block or chunk, which can improve the upload speed (relatively, the upload stability may be reduced).
-- Due to the time-out retransmission strategy (at least 3 retry times) to ensure the reliability of the transmission, if the customer wants to accelerate the upload speed, the size of the chunk can be converted to the size of the block to ensure the maximum number of concurrency and improve the upload speed.
-- Multipart upload progress information is in "filename.rcd" , save as JSON. It will write a JSON record after uploading a chunk, and the progress information is stored in the $JSON [' Info '] [' Progress '] partition, and the customer can process this infomation as needed.
-- If the upload is successful, filename.rcd and filename.log will be deleted. 
+- Multipart upload only does concurrency inside the block, and it is initialization concurrency instead of multithreading. Considering that PHP doesn't support multithreading very well, the conversion mechanism is implemented using `guzzleHTTP`.
+- Block size is set to 2M and chunk size is set to 256K by default to make the upload more stable. You can adjust size of block or chunk to accelertate upload.(relatively, the upload stability may be reduced)
+- Time-out retransmission will ensure the raliability of transmisssion, which means that you can set chunk size bigger just as block size with mamimum concurrece to imporove upload speed.
+- Multipart upload progress information is in `filename.rcd` , save as JSON. A record will be written as `$JSON [' Info '] [' Progress ']` in `filename.rc` after a chunk uploaded.
+- `Filename.rcd` and `filename.log` will be deleted after upload.  
 
-#### Vaiable Explanation
+#### Vaiable Description
 ```
 //Basic Information
 private $blockSize;
@@ -134,7 +135,7 @@ private $chunkSize;
 private $countForRetry;
 private $timeoutForRetry;
 
-//User customized information
+//Customized information
 private $userParam;
 private $encodedUserVars;
 private $mimeType;
@@ -159,9 +160,9 @@ private $time;  //generation time of token, it is used to verify if the token is
 
 #### Example
 ```
-//bucketName buck name
-//fileKey   customized file name
-//localFile  name of file uploaded
+//bucketName 
+//fileKey   
+//localFile
 
 require '../vendor/autoload.php';
 use Wcs\Upload\ResumeUploader;
@@ -173,6 +174,8 @@ if ($fileKey == null || $fileKey === '') {
 } else {
     $pp->scope = $bucketName . ':' . $fileKey;
 }
+
+// '1483027200000' is a timestamp, which you can define by yourself
 $pp->deadline = '1483027200000';
 $pp->persistentOps = $cmd;
 $pp->persistentNotifyUrl = $notifyUrl;
@@ -185,9 +188,9 @@ $client->upload($localFile);
 ```
 
 ### Resource Management
-Provide the basic operation to files.
+Basic management of files.
 
-#### Delete file
+#### Delete files
 ##### Example
 ```
 require '../vendor/autoload.php';
@@ -205,7 +208,7 @@ print_r($client->delete($bucketName, $fileKey));
 
 ```
 
-##### Command Line Test
+##### Command Line
 ```
 $ php file_delete.php [-h | --help] -b <bucketName> -f <fileKey>
 
@@ -229,14 +232,14 @@ print_r($client->stat($bucketName, $fileKey));
 
 ```
 
-##### Command Line Test
+##### Command Line
 ```
 $ php file_stat.php [-h | --help] -b <bucketName> -f <fileKey>
 
 
 ```
 
-#### Dual Resource
+#### List Resources
 
 ##### Example
 ```
@@ -254,13 +257,13 @@ print_r($client->bucketList($bucketName, $limit, $prefix, $mode, $marker));
 
 ```
 
-##### Command Line Test
+##### Command Line
 ```
 $ php file_download.php [-h | --help] -b <bucketName> [-l <limit>] [-p <prefix>] [-m <mode>] [--ma <marker>]
 
 ```
 
-#### Update Supplemental Resource
+#### Update Mirror Resource
 ##### Example
 ```
 require '../vendor/autoload.php';
@@ -278,7 +281,7 @@ print_r($client->updateMirrorSrc($bucketName, $fileKeys));
 
 ```
 
-##### Command Line Test
+##### Command Line
 ```
 $ php file_stat.php [-h | --help] -b <bucket> -f [<fileKey1>|<fileKey2>|<fileKey3>...]
 
@@ -324,7 +327,7 @@ print_r($client->copy($bucketSrc, $keySrc, $bucketDst, $keyDst));
 
 ```
 
-##### Command Line Test
+##### Command Line
 ```
 $ php file_copy.php [-h | --help] --bs <bucketSrc> --ks <keyStr> --bd <bucketDst> --kd <keyDst>
 
@@ -346,7 +349,7 @@ $client = new FileManager($auth);
 print_r($client->avInfo($key));
 
 ```
-##### Command Line Test
+##### Command Line
 ```
 php avinfo.php [-h | --help] -k <key>
 
@@ -369,13 +372,13 @@ $client = new FileManager($auth);
 print_r($client->avInfo2($key));
 
 ```
-##### Command Line Test
+##### Command Line
 ```
 $ php avinfo2.php [-h | --help] -k <key>
 
 ```
 
-#### Set expiry for files
+#### Set expiration time of file
 ##### Example
 ```
 require '../../vendor/autoload.php';
@@ -391,7 +394,7 @@ $client = new FileManager($auth);
 print_r($client->setDeadline($bucketName, $fileKey, $deadline));
 
 ```
-##### Command Line Test
+##### Command Line
 ```
 $ php file_setDeadLine.php [-h | --help] -b <bucketName> -f <fileKey> -d <deadline>
 
@@ -557,7 +560,7 @@ print_r($client->delete($fops));
 
 ```
 
-#### Delete resource by pre-set info
+#### Delete resource by prefix
 ```
 
 require '../../vendor/autoload.php';
